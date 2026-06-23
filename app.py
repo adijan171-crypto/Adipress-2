@@ -53,12 +53,17 @@ class Config:
 # ============================================
 # APP INITIALIZATION
 # ============================================
+
 app = Flask(__name__)
 app.config.from_object(Config)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 db = SQLAlchemy(app)
-babel = Babel(app)
 
+# ✅ یہ نئی لائن ڈالیں
+with app.app_context():
+    db.create_all()
+
+babel = Babel(app)
 # ============================================
 # DECORATORS
 # ============================================
