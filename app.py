@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 AdiPress v3.1 - Multi-Tenant PaaS + Website Builder
-Railway Ready - Docker/Redis/SocketIO removed
+Railway Ready - All fixes applied
 Support: 20 Programming Languages + 15 UI Languages + Universal Themes
 Author: Adi SD
 """
@@ -10,7 +10,6 @@ Author: Adi SD
 import os
 import json
 import secrets
-import subprocess
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import Flask, request, g, session, redirect, url_for, render_template_string, jsonify, abort, flash
@@ -53,17 +52,17 @@ class Config:
 # ============================================
 # APP INITIALIZATION
 # ============================================
-
 app = Flask(__name__)
 app.config.from_object(Config)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 db = SQLAlchemy(app)
 
-# ✅ یہ نئی لائن ڈالیں
+# ✅ FIX: Create tables on startup (Railway fix)
 with app.app_context():
     db.create_all()
 
 babel = Babel(app)
+
 # ============================================
 # DECORATORS
 # ============================================
@@ -77,6 +76,14 @@ def login_required(f):
             session.pop('user_id', None)
             return redirect(url_for('client_login'))
         g.user = user
+        return f(*args, **kwargs)
+    return decorated_function
+
+def super_admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('super_admin_id'):
+            return redirect(url_for('super_admin_login'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -407,7 +414,6 @@ def seed_initial_data():
 @app.cli.command('seed')
 def seed_command():
     with app.app_context():
-        db.create_all()
         seed_initial_data()
 
 @app.cli.command('create-superadmin')
@@ -420,21 +426,10 @@ def create_superadmin():
     print(f"✅ Super Admin created: {email}")
 
 # ============================================
-# DEPLOY FUNCTION - DISABLED (no Docker on Railway)
+# DEPLOY FUNCTION - DISABLED
 # ============================================
 def deploy_site(site):
     return True
-
-# ============================================
-# SUPER ADMIN AUTH DECORATOR
-# ============================================
-def super_admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not session.get('super_admin_id'):
-            return redirect(url_for('super_admin_login'))
-        return f(*args, **kwargs)
-    return decorated_function
 
 # ============================================
 # SUPER ADMIN ROUTES
@@ -601,7 +596,7 @@ def sa_toggle_language(lang_id):
     return redirect(url_for('sa_languages'))
 
 # ============================================
-# SUPER ADMIN HTML TEMPLATES (Part 1)
+# SUPER ADMIN HTML TEMPLATES
 # ============================================
 SA_LOGIN_HTML = '''
 <!DOCTYPE html>
@@ -989,7 +984,7 @@ SA_PLUGINS_HTML = SA_THEMES_HTML.replace('Themes','Plugins').replace('themes','p
 SA_LANGUAGES_HTML = SA_THEMES_HTML.replace('Themes','Languages').replace('themes','languages')
 
 # ============================================
-# PART 1 END - Continue to PART 2 (second half)
+# PART 1 END - Continue to PART 2
 # ============================================
 # ============================================
 # PART 2: CLIENT PANEL + PAAS FEATURES
@@ -1882,6 +1877,7 @@ def render_site(path):
 # ============================================
 
 if __name__ == '__main__':
+    # Tables already created at app start, but this ensures they exist in dev too
     with app.app_context():
         db.create_all()
     
